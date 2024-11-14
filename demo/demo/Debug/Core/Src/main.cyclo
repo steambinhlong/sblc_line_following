@@ -1,0 +1,15 @@
+../Core/Src/main.c:96:9:get_sensor_mask	3
+../Core/Src/main.c:114:6:run	5
+../Core/Src/main.c:148:6:PID	3
+../Core/Src/main.c:169:6:HAL_GPIO_EXTI_Callback	3
+../Core/Src/main.c:186:5:main	1
+../Core/Src/main.c:274:6:SystemClock_Config	4
+../Core/Src/main.c:321:13:MX_ADC1_Init	5
+../Core/Src/main.c:386:13:MX_TIM2_Init	7
+../Core/Src/main.c:445:13:MX_DMA_Init	1
+../Core/Src/main.c:463:13:MX_GPIO_Init	1
+../Core/Src/main.c:531:6:StartDefaultTask	15
+../Core/Src/main.c:645:6:StartPIDTask	5
+../Core/Src/main.c:688:6:StartLEDTask	4
+../Core/Src/main.c:800:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:817:6:Error_Handler	1

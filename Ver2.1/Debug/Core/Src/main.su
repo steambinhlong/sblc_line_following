@@ -1,0 +1,17 @@
+../Core/Src/main.c:109:6:robot_setSpeed	16	static
+../Core/Src/main.c:146:6:robot_PIDCalib	8	static
+../Core/Src/main.c:165:9:sensor_writeLED	16	static
+../Core/Src/main.c:185:6:robot_setRGB	16	static
+../Core/Src/main.c:192:6:robot_beepLong	16	static
+../Core/Src/main.c:199:6:robot_setBuzzer	24	static
+../Core/Src/main.c:208:6:button_handle	16	static
+../Core/Src/main.c:248:5:main	24	static
+../Core/Src/main.c:379:6:SystemClock_Config	88	static
+../Core/Src/main.c:426:13:MX_ADC1_Init	24	static
+../Core/Src/main.c:500:13:MX_TIM2_Init	48	static
+../Core/Src/main.c:561:13:MX_TIM3_Init	32	static
+../Core/Src/main.c:606:13:MX_TIM4_Init	32	static
+../Core/Src/main.c:649:13:MX_DMA_Init	16	static
+../Core/Src/main.c:667:13:MX_GPIO_Init	40	static
+../Core/Src/main.c:736:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:791:6:Error_Handler	4	static,ignoring_inline_asm

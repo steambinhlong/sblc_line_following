@@ -45,6 +45,7 @@
 #define deltaT 0.001
 #define kP 4
 #define kD 0.3
+#define distance 700
 //#define kP
 //#define kD
 /* USER CODE END PM */
@@ -769,7 +770,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	if(run_with_sensor == 1)
 	{
-		if(sensor_value[3] > 700)
+		if(sensor_value[3] > distance)
 		{
 			robot_setRGB(0, 0, 1);
 		}

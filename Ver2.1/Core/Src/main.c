@@ -45,6 +45,7 @@
 #define deltaT 0.001
 #define kP 4
 #define kD 0.3
+#define distance 700
 //#define kP
 //#define kD
 /* USER CODE END PM */

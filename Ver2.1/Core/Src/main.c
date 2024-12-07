@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdlib.h"		// standard library = stdlib
+#include "params.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,14 +37,6 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-// toc do 200-400 -> kP = 0.3, kD = 0.01;
-// toc do 500 -> kP = 0.3, kD = 0.02;
-// toc do 700 -> kP = 1, kD = 0.02;
-// toc do 900 -> kP = 4, kD = 0.3;
-
-#define FLASH_ADDR_BASE 0x08000000
-#define FLASH_ADDR_TARGET_PAGE 127
-#define FLASH_ADDR_TARGET (FLASH_ADDR_BASE + 1024*FLASH_ADDR_TARGET_PAGE)
 
 /* USER CODE END PM */
 
@@ -58,47 +51,7 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-/* -------------- BEGIN: CONFIG PARAMETER--------------*/
-uint16_t intialSpeed;
-float deltaT = 0.001;
-float kP;
-float kD;
-/* -------------- END: CONFIG PARAMETER----------------*/
 
-
-typedef enum RUN_CASE
-{
-	STOP = 0,
-	LEARN_AUTO,
-	LEARN_MANUAL,
-	RUN_NO_TC,
-	RUN_WITH_TC
-} RUN_CASE;
-
-uint16_t cnt = 0;
-
-uint8_t run_case;
-
-int16_t left_speed, right_speed, intial_speed;
-
-uint8_t sensor_mask;
-uint16_t sensor_value[4];
-uint16_t minOfMax[3] = {1200};
-uint16_t maxOfMin[3] = {2500};
-uint16_t v_compare[3];
-uint16_t calib_weight[3] = {0, 279, 345};
-GPIO_TypeDef *sensor_led_port[3] = {LED1_GPIO_Port, LED2_GPIO_Port, LED3_GPIO_Port};
-uint16_t sensor_led_pin[3] = {LED1_Pin, LED2_Pin, LED3_Pin};
-
-uint8_t pid_enable = 0, run_with_sensor = 0;
-
-float err, pre_err;
-float uP, uD, u;
-
-uint8_t button_event;
-
-uint8_t tx_data[10], rx_data[2], data[10];
-uint8_t readyToAssign = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -163,8 +116,8 @@ void robot_PIDCalib(void)
 
 	u = uP + uD;
 
-	if(u > 1000) u = 1000;
-	else if(u < -1000) u = -1000;
+	if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
+	else if(u < -PID_LIMIT_BOT) u = -PID_LIMIT_BOT;
 
 	left_speed = intial_speed + u;
 	right_speed = intial_speed - u;
@@ -175,18 +128,18 @@ void robot_PIDCalib(void)
 uint8_t sensor_writeLED(void)
 {
 	uint8_t temp;
-	for(uint8_t i = 0 ; i < 3; i++)
+	for(uint8_t i = 0 ; i < NUM_OF_LINE_SENSOR; i++)
 	{
-		temp <<= 0x01;
+		temp <<= MASK_001;
 		if(sensor_value[i] > v_compare[i])
 		{
 			HAL_GPIO_WritePin(sensor_led_port[i], sensor_led_pin[i], 1);
-			temp |= 0x01;
+			temp |= MASK_001;
 		}
 		else
 		{
 			HAL_GPIO_WritePin(sensor_led_port[i], sensor_led_pin[i], 0);
-			temp &= 0x06;
+			temp &= MASK_110;
 		}
 	}
 	return temp;
@@ -217,13 +170,13 @@ void robot_setBuzzer(uint16_t millisec, uint8_t numOfBeep)
 
 void resetBuffer(void)
 {
-	for(uint8_t i = 0; i < 10; i++)
+	for(uint8_t i = 0; i < SIZE_TX_DATA; i++)
 	{
 		*(tx_data + i) = 0;
 	}
-	for(uint8_t i = 0; i < 2; i++)
+	for(uint8_t i = 0; i < SIZE_COMMAND; i++)
 	{
-		*(rx_data + i) = 0;
+		*(cmd + i) = 0;
 	}
 }
 
@@ -273,7 +226,7 @@ void assignData(void)
 void robot_readFlash(void)
 {
 	// Đọc dữ liệu từ flash
-	for (uint8_t i = 0; i < 10; i++) {
+	for (uint8_t i = 0; i < SIZE_DATA; i++) {
 		data[i] = *(uint8_t *)(FLASH_ADDR_TARGET + i);
 	}
 	assignData();
@@ -290,7 +243,7 @@ void robot_writeFlash(void)
 	eraseInitStruct.NbPages = 1;
 	HAL_FLASHEx_Erase(&eraseInitStruct, &pageError);
 
-	for(uint8_t i = 0; i < 10; i+=4)
+	for(uint8_t i = 0; i < SIZE_DATA; i+=WORD_DISTANCE_BETWEEN)
 	{
 		robot_setRGB(1, 1, 1);
 		uint32_t data_write = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24);
@@ -300,7 +253,7 @@ void robot_writeFlash(void)
 
 	HAL_FLASH_Lock();
 	robot_setRGB(1, 0, 1);
-	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
 }
 
 void robot_init(void)
@@ -313,29 +266,29 @@ void robot_init(void)
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, 4);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, NUM_OF_ALL_SENSORS);
 
 	robot_readFlash();
 
 	robot_setRGB(1, 0, 0);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(0, 1, 0);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(0, 0, 1);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(1, 1, 0);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(0, 1, 1);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(1, 0, 1);
-	HAL_Delay(100);
+	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(1, 1, 1);
-	HAL_Delay(1000);
+	HAL_Delay(TIMEBLINK_RGB_END);
   	robot_setRGB(0, 0, 0);
 
-  	robot_setBuzzer(100, 3);
+  	robot_setBuzzer(DEFAULT_TIME_BEEP, DEFAULT_BEEP_NUMS);
 
-  	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+  	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
 }
 
 void button_handle(void)
@@ -348,26 +301,26 @@ void button_handle(void)
 	switch(button_event)
 	{
 		// khi button 1 duoc nhan
-		case 7:
+		case BT1_PRESSED:
 			run_case = LEARN_AUTO;
 			break;
 
 		// khi button 2 duoc nhan
-		case 11:
+		case BT2_PRESSED:
 			run_case = LEARN_MANUAL;
 			break;
 
 		// khi button 3 duoc nhan
-		case 13:
+		case BT3_PRESSED:
 			run_case = RUN_NO_TC;
 			break;
 
 		// khi button 4 duoc nhan
-		case 14:
+		case BT4_PRESSED:
 			run_case = RUN_WITH_TC;
 			break;
 
-		case 15:
+		case ALL_BT_UP:
 			run_case = STOP;
 			break;
 	}
@@ -377,26 +330,26 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart -> Instance == USART1)
 	{
-		if(rx_data[0] == '#' && rx_data[1] == '\n')
+		if(cmd[0] == '#' && cmd[1] == '\n')
 		{
 			robot_setRGB(0, 0, 0);
 			resetBuffer();
-			HAL_UART_Receive_IT(huart, rx_data, 2);
+			HAL_UART_Receive_IT(huart, cmd, sizeof(cmd));
 		}
-		if(rx_data[0] == '@' && rx_data[1] == '\n')
+		if(cmd[0] == '@' && cmd[1] == '\n')
 		{
 			robot_setRGB(1, 0, 1);
 			prepareToSend();
-			HAL_UART_Receive_IT(huart, rx_data, 2);
+			HAL_UART_Receive_IT(huart, cmd, sizeof(cmd));
 		}
-		if(rx_data[0] == '$' && rx_data[1] == '\n')
+		if(cmd[0] == '$' && cmd[1] == '\n')
 		{
 			HAL_UART_AbortReceive_IT(huart);
 			robot_setRGB(0, 1, 1);
-			HAL_UART_Receive_IT(huart, data, 10);
+			HAL_UART_Receive_IT(huart, data, sizeof(data));
 			readyToAssign = 1;
 		}
-		if(rx_data[0] == '%' && rx_data[1] == '\n')
+		if(cmd[0] == '%' && cmd[1] == '\n')
 		{
 			robot_writeFlash();
 		}
@@ -452,11 +405,11 @@ int main(void)
 	switch(run_case)
 	{
 		case LEARN_AUTO:
-			robot_setBuzzer(500, 3);
-			for(uint32_t i = 0; i < 500000; i++)
+			robot_setBuzzer(LEARN_AUTO_TIME_BEEP, DEFAULT_BEEP_NUMS);
+			for(uint32_t i = 0; i < TIME_LEARN_AUTO; i++)
 			{
-				robot_setSpeed(200, -200);
-				for(uint8_t j = 0; j < 3; j++)
+				robot_setSpeed(SPEED_LEARN_AUTO, -SPEED_LEARN_AUTO);
+				for(uint8_t j = 0; j < NUM_OF_LINE_SENSOR; j++)
 				{
 					if(sensor_value[j] > maxOfMin[j])
 					{
@@ -473,10 +426,10 @@ int main(void)
 			run_case = STOP;
 			break;
 		case LEARN_MANUAL:
-			robot_setBuzzer(200, 3);
-			for(uint32_t i = 0; i < 500000; i++)
+			robot_setBuzzer(LEARN_MANUAL_TIME_BEEP, DEFAULT_BEEP_NUMS);
+			for(uint32_t i = 0; i < TIME_LEARN_AUTO; i++)
 			{
-				for(uint8_t j = 0; j < 3; j++)
+				for(uint8_t j = 0; j < NUM_OF_LINE_SENSOR; j++)
 				{
 					if(sensor_value[j] > maxOfMin[j])
 					{
@@ -492,9 +445,9 @@ int main(void)
 			run_case = STOP;
 			break;
 		case RUN_NO_TC:
-			if((sensor_mask & 0x0f) == 0x02)
+			if((sensor_mask & MASK_4BIT) == MASK_010)
 			{
-				robot_beepLong(1000);
+				robot_beepLong(RUN_NO_TC_TIME_BEEP);
 				pid_enable = 1;
 			}
 			run_case = STOP;
@@ -506,12 +459,12 @@ int main(void)
 		case STOP:
 		  	if(readyToAssign)
 		  	{
-		  		HAL_UART_Receive_IT(&huart1, data, 10);
-		  		HAL_Delay(200);
+		  		HAL_UART_Receive_IT(&huart1, data, sizeof(data));
+		  		HAL_Delay(TIMEOUT_RECEIVING_DATA);
 		  		assignData();
 		  		HAL_UART_AbortReceive_IT(&huart1);
 		  		readyToAssign = 0;
-			  	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+			  	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
 				robot_setRGB(1, 0, 1);
 		  	}
 		  	break;
@@ -931,7 +884,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		{
 			if(intial_speed < intialSpeed)
 			{
-				intial_speed+=2;
+				intial_speed+=ACCEL_SPEED;
 			}
 			robot_PIDCalib();
 		}
@@ -945,13 +898,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM4) {
 	button_handle();
 	sensor_mask = sensor_writeLED();
-	if((sensor_mask & 0x0F) == 0x07)
+	if((sensor_mask & MASK_4BIT) == MASK_111)
 	{
 		pid_enable = 0;
 	}
 	if(run_with_sensor == 1)
 	{
-		if(sensor_value[3] > 700)
+		if(sensor_value[3] > TC_DETECT_VALUE)
 		{
 			robot_setRGB(0, 0, 1);
 		}

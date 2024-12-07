@@ -41,12 +41,10 @@
 // toc do 700 -> kP = 1, kD = 0.02;
 // toc do 900 -> kP = 4, kD = 0.3;
 
-#define intialSpeed 900
-#define deltaT 0.001
-#define kP 4
-#define kD 0.3
-//#define kP
-//#define kD
+#define FLASH_ADDR_BASE 0x08000000
+#define FLASH_ADDR_TARGET_PAGE 127
+#define FLASH_ADDR_TARGET (FLASH_ADDR_BASE + 1024*FLASH_ADDR_TARGET_PAGE)
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -57,7 +55,17 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart1;
+
 /* USER CODE BEGIN PV */
+/* -------------- BEGIN: CONFIG PARAMETER--------------*/
+uint16_t intialSpeed;
+float deltaT = 0.001;
+float kP;
+float kD;
+/* -------------- END: CONFIG PARAMETER----------------*/
+
+
 typedef enum RUN_CASE
 {
 	STOP = 0,
@@ -89,7 +97,8 @@ float uP, uD, u;
 
 uint8_t button_event;
 
-
+uint8_t tx_data[10], rx_data[2], data[10];
+uint8_t readyToAssign = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,6 +109,7 @@ static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -205,6 +215,129 @@ void robot_setBuzzer(uint16_t millisec, uint8_t numOfBeep)
 	}
 }
 
+void resetBuffer(void)
+{
+	for(uint8_t i = 0; i < 10; i++)
+	{
+		*(tx_data + i) = 0;
+	}
+	for(uint8_t i = 0; i < 2; i++)
+	{
+		*(rx_data + i) = 0;
+	}
+}
+
+void prepareToSend(void)
+{
+	uint8_t *pByte = NULL;
+	pByte = &kP;
+	for(uint8_t i = 0; i < 4; i++)
+	{
+		*(tx_data + i) = pByte[i];
+	}
+	pByte = &kD;
+	for(uint8_t i = 4; i < 8; i++)
+	{
+		*(tx_data + i) = pByte[i - 4];
+	}
+	pByte = &intialSpeed;
+	for(uint8_t i = 8; i < 10; i++)
+	{
+		*(tx_data + i) = pByte[i - 8];
+	}
+	HAL_UART_Transmit(&huart1, tx_data, sizeof(tx_data), HAL_MAX_DELAY);
+	resetBuffer();
+}
+
+void assignData(void)
+{
+	uint8_t *pByte = NULL;
+	pByte = &kP;
+	for(uint8_t i = 0; i < 4; i++)
+	{
+		pByte[i] = data[i];
+	}
+	pByte = &kD;
+	for(uint8_t i = 4; i < 8; i++)
+	{
+		pByte[i-4] = data[i];
+	}
+	pByte = &intialSpeed;
+	for(uint8_t i = 8; i < 10; i++)
+	{
+		pByte[i-8] = data[i];
+	}
+	resetBuffer();
+}
+
+void robot_readFlash(void)
+{
+	// Đọc dữ liệu từ flash
+	for (uint8_t i = 0; i < 10; i++) {
+		data[i] = *(uint8_t *)(FLASH_ADDR_TARGET + i);
+	}
+	assignData();
+}
+
+void robot_writeFlash(void)
+{
+	HAL_FLASH_Unlock();
+
+	FLASH_EraseInitTypeDef eraseInitStruct;
+	uint32_t pageError;
+	eraseInitStruct.TypeErase = FLASH_TYPEERASE_PAGES;
+	eraseInitStruct.PageAddress = FLASH_ADDR_TARGET;
+	eraseInitStruct.NbPages = 1;
+	HAL_FLASHEx_Erase(&eraseInitStruct, &pageError);
+
+	for(uint8_t i = 0; i < 10; i+=4)
+	{
+		robot_setRGB(1, 1, 1);
+		uint32_t data_write = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24);
+        HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_ADDR_TARGET + i, data_write);
+		robot_setRGB(0, 0, 0);
+	}
+
+	HAL_FLASH_Lock();
+	robot_setRGB(1, 0, 1);
+	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+}
+
+void robot_init(void)
+{
+	HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_Base_Start_IT(&htim4);
+
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, 4);
+
+	robot_readFlash();
+
+	robot_setRGB(1, 0, 0);
+	HAL_Delay(100);
+	robot_setRGB(0, 1, 0);
+	HAL_Delay(100);
+	robot_setRGB(0, 0, 1);
+	HAL_Delay(100);
+	robot_setRGB(1, 1, 0);
+	HAL_Delay(100);
+	robot_setRGB(0, 1, 1);
+	HAL_Delay(100);
+	robot_setRGB(1, 0, 1);
+	HAL_Delay(100);
+	robot_setRGB(1, 1, 1);
+	HAL_Delay(1000);
+  	robot_setRGB(0, 0, 0);
+
+  	robot_setBuzzer(100, 3);
+
+  	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+}
+
 void button_handle(void)
 {
 	button_event = (HAL_GPIO_ReadPin(BT1_GPIO_Port, BT1_Pin) << 3) |
@@ -237,6 +370,36 @@ void button_handle(void)
 		case 15:
 			run_case = STOP;
 			break;
+	}
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart -> Instance == USART1)
+	{
+		if(rx_data[0] == '#' && rx_data[1] == '\n')
+		{
+			robot_setRGB(0, 0, 0);
+			resetBuffer();
+			HAL_UART_Receive_IT(huart, rx_data, 2);
+		}
+		if(rx_data[0] == '@' && rx_data[1] == '\n')
+		{
+			robot_setRGB(1, 0, 1);
+			prepareToSend();
+			HAL_UART_Receive_IT(huart, rx_data, 2);
+		}
+		if(rx_data[0] == '$' && rx_data[1] == '\n')
+		{
+			HAL_UART_AbortReceive_IT(huart);
+			robot_setRGB(0, 1, 1);
+			HAL_UART_Receive_IT(huart, data, 10);
+			readyToAssign = 1;
+		}
+		if(rx_data[0] == '%' && rx_data[1] == '\n')
+		{
+			robot_writeFlash();
+		}
 	}
 }
 /* USER CODE END 0 */
@@ -274,34 +437,9 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM4_Init();
   MX_TIM3_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
-
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
-
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, 4);
-
-  robot_setRGB(1, 0, 0);
-  HAL_Delay(100);
-  robot_setRGB(0, 1, 0);
-  HAL_Delay(100);
-  robot_setRGB(0, 0, 1);
-  HAL_Delay(100);
-  robot_setRGB(1, 1, 0);
-  HAL_Delay(100);
-  robot_setRGB(0, 1, 1);
-  HAL_Delay(100);
-  robot_setRGB(1, 0, 1);
-  HAL_Delay(100);
-  robot_setRGB(1, 1, 1);
-  HAL_Delay(1000);
-  robot_setRGB(0, 0, 0);
-
-  robot_setBuzzer(100, 3);
+  robot_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -364,8 +502,19 @@ int main(void)
 		case RUN_WITH_TC:
 			run_with_sensor = 1;
 			break;
+
 		case STOP:
-			break;
+		  	if(readyToAssign)
+		  	{
+		  		HAL_UART_Receive_IT(&huart1, data, 10);
+		  		HAL_Delay(200);
+		  		assignData();
+		  		HAL_UART_AbortReceive_IT(&huart1);
+		  		readyToAssign = 0;
+			  	HAL_UART_Receive_IT(&huart1, rx_data, 2);
+				robot_setRGB(1, 0, 1);
+		  	}
+		  	break;
 	}
 
   }
@@ -640,6 +789,39 @@ static void MX_TIM4_Init(void)
   /* USER CODE BEGIN TIM4_Init 2 */
 
   /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 

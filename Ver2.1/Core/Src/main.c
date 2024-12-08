@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdlib.h"		// standard library = stdlib
+#include "stdlib.h"
 #include "params.h"
 /* USER CODE END Includes */
 
@@ -69,40 +69,102 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void robot_setDirection(uint8_t Dir_L, uint8_t Dir_R)
+{
+	Dir_Left = Dir_L;
+	Dir_Right = Dir_R;
+}
+
 void robot_setSpeed(int16_t left_speed, int16_t right_speed)
 {
-	// left speed process - motor left
-	if(left_speed > 0)
+	if(Dir_Left)
 	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, left_speed);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
-	}
-	else if(left_speed < 0)
-	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, abs(left_speed));
+		// nếu tốc độ bên trái lớn hơn 0
+			if(left_speed > 0)
+			{
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, left_speed);
+			}
+
+			// nếu tốc độ bên trái nh�? hơn 0 -> quay chi�?u ngược lại
+			else if(left_speed < 0)
+			{
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (-1*left_speed));		// sử dụng
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+			}
+
+			// nếu tốc độ bên trái bằng 0 -> đứng yên
+			else
+			{
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+				__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+			}
 	}
 	else
 	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+		// nếu tốc độ bên trái lớn hơn 0
+		if(left_speed > 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, left_speed);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+		}
+
+		// nếu tốc độ bên trái nh�? hơn 0 -> quay chi�?u ngược lại
+		else if(left_speed < 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, (-1*left_speed));		// sử dụng
+		}
+
+		// nếu tốc độ bên trái bằng 0 -> đứng yên
+		else
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+		}
 	}
 
-	// right speed process - motor right
-	if(right_speed > 0)
+	if(Dir_Right)
 	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, right_speed);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
-	}
-	else if(right_speed < 0)
-	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, abs(right_speed));
+		// nếu tốc độ bên phải lớn hơn 0
+		if(right_speed > 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, right_speed);
+		}
+
+		// nếu tốc độ bên phải nh�? hơn 0 -> quay chi�?u ngược lại
+		else if(right_speed < 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (-1*right_speed));
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+		}
+		else
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+		}
 	}
 	else
 	{
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+		// nếu tốc độ bên phải lớn hơn 0
+		if(right_speed > 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, right_speed);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+		}
+
+		// nếu tốc độ bên phải nh�? hơn 0 -> quay chi�?u ngược lại
+		else if(right_speed < 0)
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, (-1*right_speed));
+		}
+		else
+		{
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+		}
 	}
 }
 
@@ -117,10 +179,10 @@ void robot_PIDCalib(void)
 	u = uP + uD;
 
 	if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
-	else if(u < -PID_LIMIT_BOT) u = -PID_LIMIT_BOT;
+	else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
 
-	left_speed = intial_speed + u;
-	right_speed = intial_speed - u;
+	left_speed = intial_speed + ((int16_t) u);
+	right_speed = intial_speed - ((int16_t) u);
 
 	robot_setSpeed(left_speed, right_speed);
 }
@@ -225,7 +287,6 @@ void assignData(void)
 
 void robot_readFlash(void)
 {
-	// Đọc dữ liệu từ flash
 	for (uint8_t i = 0; i < SIZE_DATA; i++) {
 		data[i] = *(uint8_t *)(FLASH_ADDR_TARGET + i);
 	}
@@ -245,15 +306,11 @@ void robot_writeFlash(void)
 
 	for(uint8_t i = 0; i < SIZE_DATA; i+=WORD_DISTANCE_BETWEEN)
 	{
-		robot_setRGB(1, 1, 1);
 		uint32_t data_write = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24);
         HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_ADDR_TARGET + i, data_write);
-		robot_setRGB(0, 0, 0);
 	}
 
 	HAL_FLASH_Lock();
-	robot_setRGB(1, 0, 1);
-	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
 }
 
 void robot_init(void)
@@ -265,6 +322,8 @@ void robot_init(void)
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+
+	robot_setDirection(1, 1);
 
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, NUM_OF_ALL_SENSORS);
 
@@ -288,7 +347,7 @@ void robot_init(void)
 
   	robot_setBuzzer(DEFAULT_TIME_BEEP, DEFAULT_BEEP_NUMS);
 
-  	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
+  	HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
 }
 
 void button_handle(void)
@@ -300,22 +359,18 @@ void button_handle(void)
 
 	switch(button_event)
 	{
-		// khi button 1 duoc nhan
 		case BT1_PRESSED:
 			run_case = LEARN_AUTO;
 			break;
 
-		// khi button 2 duoc nhan
 		case BT2_PRESSED:
 			run_case = LEARN_MANUAL;
 			break;
 
-		// khi button 3 duoc nhan
 		case BT3_PRESSED:
 			run_case = RUN_NO_TC;
 			break;
 
-		// khi button 4 duoc nhan
 		case BT4_PRESSED:
 			run_case = RUN_WITH_TC;
 			break;
@@ -334,24 +389,24 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		{
 			robot_setRGB(0, 0, 0);
 			resetBuffer();
-			HAL_UART_Receive_IT(huart, cmd, sizeof(cmd));
+			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
 		}
 		if(cmd[0] == '@' && cmd[1] == '\n')
 		{
 			robot_setRGB(1, 0, 1);
 			prepareToSend();
-			HAL_UART_Receive_IT(huart, cmd, sizeof(cmd));
+			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
 		}
 		if(cmd[0] == '$' && cmd[1] == '\n')
 		{
 			HAL_UART_AbortReceive_IT(huart);
-			robot_setRGB(0, 1, 1);
-			HAL_UART_Receive_IT(huart, data, sizeof(data));
+			robot_setRGB(0, 1, 0);
+			HAL_UART_Receive_IT(huart, data, SIZE_DATA);
 			readyToAssign = 1;
 		}
 		if(cmd[0] == '%' && cmd[1] == '\n')
 		{
-			robot_writeFlash();
+			readyToWrite = 1;
 		}
 	}
 }
@@ -459,14 +514,24 @@ int main(void)
 		case STOP:
 		  	if(readyToAssign)
 		  	{
-		  		HAL_UART_Receive_IT(&huart1, data, sizeof(data));
+		  		HAL_UART_Receive_IT(&huart1, data, SIZE_DATA);
 		  		HAL_Delay(TIMEOUT_RECEIVING_DATA);
 		  		assignData();
 		  		HAL_UART_AbortReceive_IT(&huart1);
 		  		readyToAssign = 0;
-			  	HAL_UART_Receive_IT(&huart1, cmd, sizeof(cmd));
+			  	HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
 				robot_setRGB(1, 0, 1);
 		  	}
+		  	if(readyToWrite)
+		  	{
+		  		robot_setRGB(0, 0, 1);
+		  		robot_writeFlash();
+		  		HAL_Delay(TIMEOUT_WRITE_FLASH);
+		  		robot_setRGB(1, 0, 1);
+		  		HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
+		  		readyToWrite = 0;
+		  	}
+
 		  	break;
 	}
 
@@ -884,7 +949,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		{
 			if(intial_speed < intialSpeed)
 			{
-				intial_speed+=ACCEL_SPEED;
+				intial_speed += (uint8_t) ACCEL_SPEED;
 			}
 			robot_PIDCalib();
 		}

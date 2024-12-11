@@ -17,14 +17,19 @@
 #define FLASH_ADDR_TARGET_PAGE 127
 #define FLASH_ADDR_TARGET (FLASH_ADDR_BASE + 1024*FLASH_ADDR_TARGET_PAGE)
 
+/*---------------------------BEGIN: PARAMETERS SETTING----------------------*/
 // Ngưỡng học màu
 #define MIN_ADC_VAL 1200		// Giá trị thấp nhất của cảm biến
 #define MAX_ADC_VAL 2500		// Giá trị cao nhất của cảm biến
+
+// Giá trị bắt xa nhất của cảm biến tiệm cận
+#define TC_DETECT_VALUE 700
 
 // Độ lợi cảm biến (hiệu chỉnh để bắt line ổn hơn)
 #define CALIB_LINE_SENSOR1_VALUE 200
 #define CALIB_LINE_SENSOR2_VALUE 0
 #define CALIB_LINE_SENSOR3_VALUE 800
+/*---------------------------END: PARAMETERS SETTING------------------------*/
 
 // Giới hạn PID
 #define PID_LIMIT_TOP 1000
@@ -46,8 +51,6 @@
 #define MASK_110 0x06			// 0b00000110
 #define MASK_001 0x01			// 0b00000001
 
-// Giá trị bắt xa nhất của cảm biến tiệm cận
-#define TC_DETECT_VALUE 700
 
 
 // UART - APP COMMUNICATION

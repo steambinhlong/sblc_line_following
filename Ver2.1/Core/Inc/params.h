@@ -26,9 +26,9 @@
 #define TC_DETECT_VALUE 700
 
 // Độ lợi cảm biến (hiệu chỉnh để bắt line ổn hơn)
-#define CALIB_LINE_SENSOR1_VALUE 200
-#define CALIB_LINE_SENSOR2_VALUE 0
-#define CALIB_LINE_SENSOR3_VALUE 800
+#define CALIB_LINE_SENSOR1_VALUE 50
+#define CALIB_LINE_SENSOR2_VALUE 200
+#define CALIB_LINE_SENSOR3_VALUE 400
 /*---------------------------END: PARAMETERS SETTING------------------------*/
 
 // Giới hạn PID
@@ -80,6 +80,9 @@
 
 // Gia tốc cộng dồn
 #define ACCEL_SPEED 2
+
+#define SPEED_NORMAL 900
+#define SPEED_BRAKE 800
 
 #define TIMEOUT_WRITE_FLASH 200
 

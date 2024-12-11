@@ -75,6 +75,13 @@ void robot_setDirection(uint8_t Dir_L, uint8_t Dir_R)
 	Dir_Right = Dir_R;
 }
 
+void robot_setParam(uint16_t speed_input, float kP_input, float kD_input)
+{
+	intialSpeed = speed_input;
+	kP = kP_input;
+	kD = kD_input;
+}
+
 void robot_setSpeed(int16_t left_speed, int16_t right_speed)
 {
 	if(Dir_Left)
@@ -323,12 +330,11 @@ void robot_init(void)
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-	robot_setDirection(1, 1);
+	robot_setDirection(0, 0);
 
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, NUM_OF_ALL_SENSORS);
 
 	robot_readFlash();
-
 	robot_setRGB(1, 0, 0);
 	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(0, 1, 0);
@@ -509,6 +515,7 @@ int main(void)
 			break;
 		case RUN_WITH_TC:
 			run_with_sensor = 1;
+			run_case = STOP;
 			break;
 
 		case STOP:
@@ -531,7 +538,6 @@ int main(void)
 		  		HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
 		  		readyToWrite = 0;
 		  	}
-
 		  	break;
 	}
 
@@ -947,16 +953,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		if(sensor_value[1] > v_compare[1])
 		{
+			// 	robot_setParam(SPEED_NORMAL, 1, 0.5);
 			if(intial_speed < intialSpeed)
 			{
 				intial_speed += (uint8_t) ACCEL_SPEED;
 			}
 			robot_PIDCalib();
 		}
+		else
+		{
+			// 	robot_setParam(SPEED_BRAKE, 1.5, 0.5);
+		}
 	}
 	else
 	{
 		intial_speed = 0;
+		left_speed = 0;
+		right_speed = 0;
 		robot_setSpeed(0, 0);
 	}
   }

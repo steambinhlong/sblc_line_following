@@ -53,10 +53,10 @@ osThreadId LEDTaskHandle;
 int16_t lsp, rsp;
 
 uint16_t sensor_value[3];
-uint16_t MinOfMax[3] = {2400};
-uint16_t MaxOfMin[3] = {1200};
+uint16_t MinOfMax[3] = {3700};
+uint16_t MaxOfMin[3] = {2000};
 uint16_t v_compare[3];
-uint16_t calib_weight[3] = {0, 400, 800};
+uint16_t calib_weight[3] = {0, 0, 0};
 uint8_t start_learn = 0;
 uint8_t run_enable = 0;
 uint8_t ready = 0;
@@ -216,7 +216,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-  HAL_ADC_Start_DMA(&hadc1, sensor_value, 3);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)sensor_value, 3);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */

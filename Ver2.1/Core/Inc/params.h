@@ -26,9 +26,9 @@
 #define TC_DETECT_VALUE 700
 
 // Độ lợi cảm biến (hiệu chỉnh để bắt line ổn hơn)
-#define CALIB_LINE_SENSOR1_VALUE 1000
-#define CALIB_LINE_SENSOR2_VALUE 500
-#define CALIB_LINE_SENSOR3_VALUE 1500
+#define CALIB_LINE_SENSOR1_VALUE 0
+#define CALIB_LINE_SENSOR2_VALUE 300
+#define CALIB_LINE_SENSOR3_VALUE 500
 /*---------------------------END: PARAMETERS SETTING------------------------*/
 
 // Giới hạn PID
@@ -47,8 +47,11 @@
 // Mặt nạ
 #define MASK_4BIT 0x0F			// 0b00001111
 #define MASK_111 0x07			// 0b00000111
-#define MASK_010 0x02			// 0b00000010
+#define MASK_101 0x05			// 0b00000101
+#define MASK_100 0x04			// 0b00000100
 #define MASK_110 0x06			// 0b00000110
+#define MASK_010 0x02			// 0b00000010
+#define MASK_011 0x03			// 0b00000011
 #define MASK_001 0x01			// 0b00000001
 
 
@@ -100,7 +103,7 @@ typedef enum RUN_CASE
 
 // Các phần chỉnh sửa chính
 uint16_t targetSpeed;
-float deltaT;
+float deltaT = 0.001;
 float kP;
 float kD;
 
@@ -121,6 +124,7 @@ uint8_t Dir_Left = 0, Dir_Right = 0, Dir_PID = 0;
 
 // ADC
 uint8_t sensor_mask;	// Trạng thái hiện tại của cảm biến
+uint8_t previous_sensor_mask;
 uint16_t sensor_value[NUM_OF_ALL_SENSORS];	// Giá trị cảm biên
 uint16_t minOfMax[NUM_OF_LINE_SENSOR] = {MIN_ADC_VAL};		// Màu trắng
 uint16_t maxOfMin[NUM_OF_LINE_SENSOR] = {MAX_ADC_VAL};		// Màu đen
@@ -133,9 +137,13 @@ uint16_t sensor_led_pin[NUM_OF_LED] = {LED1_Pin, LED2_Pin, LED3_Pin};	// Chân
 
 // Cờ - Flag
 uint8_t pid_enable = 0;
+uint8_t run_without_sensor = 0;
 uint8_t run_with_sensor = 0;
 uint8_t readyToAssign = 0;
 uint8_t readyToWrite = 0;
+uint8_t isBlocked = 0;
+uint8_t isConnectWithApp = 0;
+uint8_t cntCross;
 
 // Lỗi PID
 float err, pre_err;

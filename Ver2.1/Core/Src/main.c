@@ -180,7 +180,12 @@ void robot_PIDCalib(void)
 {
 	if(!Dir_PID)
 	{
-		err = sensor_value[0] - sensor_value[2];
+		err = sensor_value[0] - sensor_value[2] + 360;
+	}
+	else
+	{
+		err = sensor_value[2] - sensor_value[0] + 360;
+	}
 
 		uP = kP * err;
 		uD = kD * ((err - pre_err) / deltaT);
@@ -193,23 +198,6 @@ void robot_PIDCalib(void)
 
 		left_speed = speed - ((int16_t) u);
 		right_speed = speed + ((int16_t) u);
-	}
-	else
-	{
-		err = sensor_value[2] - sensor_value[0];
-
-		uP = kP * err;
-		uD = kD * ((err - pre_err) / deltaT);
-		pre_err = err;
-
-		u = uP + uD;
-
-		if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
-		else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
-
-		left_speed = speed + ((int16_t) u);
-		right_speed = speed - ((int16_t) u);
-	}
 
 	robot_setSpeed(left_speed, right_speed);
 }
@@ -418,13 +406,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	{
 		if(cmd[0] == '#' && cmd[1] == '\n')
 		{
-			robot_setRGB(0, 0, 0);
 			resetBuffer();
 			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
+			isConnectWithApp = 0;
 		}
 		if(cmd[0] == '@' && cmd[1] == '\n')
 		{
-			robot_setRGB(1, 0, 1);
+			isConnectWithApp = 1;
 			prepareToSend();
 			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
 		}
@@ -531,11 +519,8 @@ int main(void)
 			run_case = STOP;
 			break;
 		case RUN_NO_TC:
-			if((sensor_mask & MASK_4BIT) == MASK_010)
-			{
-				robot_beepLong(RUN_NO_TC_TIME_BEEP);
-				pid_enable = 1;
-			}
+			robot_beepLong(RUN_NO_TC_TIME_BEEP);
+			run_without_sensor = 1;
 			run_case = STOP;
 			break;
 		case RUN_WITH_TC:
@@ -544,24 +529,41 @@ int main(void)
 			break;
 
 		case STOP:
-		  	if(readyToAssign)
-		  	{
-		  		HAL_UART_Receive_IT(&huart1, data, SIZE_DATA);
-		  		HAL_Delay(TIMEOUT_RECEIVING_DATA);
-		  		assignData();
-		  		HAL_UART_AbortReceive_IT(&huart1);
-		  		readyToAssign = 0;
-			  	HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
+			if(isConnectWithApp)
+			{
 				robot_setRGB(1, 0, 1);
-		  	}
-		  	if(readyToWrite)
+				if(readyToAssign)
+				{
+					HAL_UART_Receive_IT(&huart1, data, SIZE_DATA);
+					HAL_Delay(TIMEOUT_RECEIVING_DATA);
+					assignData();
+					HAL_UART_AbortReceive_IT(&huart1);
+					readyToAssign = 0;
+					HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
+					robot_setRGB(1, 0, 1);
+				}
+				if(readyToWrite)
+				{
+					robot_setRGB(0, 0, 1);
+					robot_writeFlash();
+					HAL_Delay(TIMEOUT_WRITE_FLASH);
+					robot_setRGB(1, 0, 1);
+					HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
+					readyToWrite = 0;
+				}
+			}
+			else
 		  	{
-		  		robot_setRGB(0, 0, 1);
-		  		robot_writeFlash();
-		  		HAL_Delay(TIMEOUT_WRITE_FLASH);
-		  		robot_setRGB(1, 0, 1);
-		  		HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
-		  		readyToWrite = 0;
+				if(sensor_value[3] > TC_DETECT_VALUE)
+				{
+					isBlocked = 1;
+					robot_setRGB(0, 0, 1);
+				}
+				else
+				{
+					robot_setRGB(0, 0, 0);
+					isBlocked = 0;
+				}
 		  	}
 		  	break;
 	}
@@ -817,7 +819,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 72-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 1000-1;
+  htim4.Init.Period = 100-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -992,28 +994,67 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	else
 	{
-		speed = 0;
-		left_speed = 0;
-		right_speed = 0;
-		robot_setSpeed(0, 0);
+		if(cntCross == 0 && run_without_sensor == 1)
+		{
+			if((sensor_mask & MASK_4BIT) == MASK_010)
+			{
+				pid_enable = 1;
+			}
+			else
+			{
+				robot_setSpeed(250, 250);
+			}
+		}
+		else
+		{
+			speed = 0;
+			left_speed = 0;
+			right_speed = 0;
+			robot_setSpeed(0, 0);
+		}
 	}
   }
   if (htim->Instance == TIM4) {
 	button_handle();
 	sensor_mask = sensor_writeLED();
-	if((sensor_mask & MASK_4BIT) == MASK_111)
+	if((sensor_mask & MASK_4BIT) == MASK_111 && pid_enable == 1)
 	{
-		pid_enable = 0;
-	}
-	if(run_with_sensor == 1)
-	{
-		if(sensor_value[3] > TC_DETECT_VALUE)
+		cntCross++;
+		if(cntCross > 5)
 		{
-			robot_setRGB(0, 0, 1);
+			pid_enable = 0;
 		}
 		else
 		{
-			robot_setRGB(0, 0, 0);
+			for(uint32_t i = 0; i < 480000; i++)
+			{
+				pid_enable = 0;
+				robot_setSpeed(150, -150);
+			}
+			if((sensor_writeLED() & MASK_4BIT) != 0x00)
+			{
+				robot_setSpeed(0, 0);
+				pid_enable = 1;
+			}
+		}
+	}
+	if((sensor_mask & MASK_4BIT) == 0x00 && pid_enable == 1)
+	{
+		for(uint32_t i = 0; i < 480000; i++)
+		{
+			pid_enable = 0;
+			robot_setSpeed(-150, 150);
+		}
+		if((sensor_writeLED() & MASK_4BIT) != 0x00)
+		{
+			robot_setSpeed(0, 0);
+			pid_enable = 1;
+		}
+	}
+	if(run_with_sensor == 1)
+	{
+		if(!isBlocked)
+		{
 			pid_enable = 1;
 			run_with_sensor = 0;
 		}

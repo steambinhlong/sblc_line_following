@@ -69,15 +69,16 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void robot_setDirection(uint8_t Dir_L, uint8_t Dir_R)
+void robot_setDirection(uint8_t Dir_L, uint8_t Dir_R, uint8_t Dir_PID)
 {
 	Dir_Left = Dir_L;
 	Dir_Right = Dir_R;
+	Dir_PID = Dir_PID;
 }
 
 void robot_setParam(uint16_t speed_input, float kP_input, float kD_input)
 {
-	intialSpeed = speed_input;
+	targetSpeed = speed_input;
 	kP = kP_input;
 	kD = kD_input;
 }
@@ -177,19 +178,38 @@ void robot_setSpeed(int16_t left_speed, int16_t right_speed)
 
 void robot_PIDCalib(void)
 {
-	err = sensor_value[2] - sensor_value[0];
+	if(!Dir_PID)
+	{
+		err = sensor_value[0] - sensor_value[2];
 
-	uP = kP * err;
-	uD = kD * ((err - pre_err) / deltaT);
-	pre_err = err;
+		uP = kP * err;
+		uD = kD * ((err - pre_err) / deltaT);
+		pre_err = err;
 
-	u = uP + uD;
+		u = uP + uD;
 
-	if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
-	else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
+		if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
+		else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
 
-	left_speed = intial_speed + ((int16_t) u);
-	right_speed = intial_speed - ((int16_t) u);
+		left_speed = speed - ((int16_t) u);
+		right_speed = speed + ((int16_t) u);
+	}
+	else
+	{
+		err = sensor_value[2] - sensor_value[0];
+
+		uP = kP * err;
+		uD = kD * ((err - pre_err) / deltaT);
+		pre_err = err;
+
+		u = uP + uD;
+
+		if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
+		else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
+
+		left_speed = speed + ((int16_t) u);
+		right_speed = speed - ((int16_t) u);
+	}
 
 	robot_setSpeed(left_speed, right_speed);
 }
@@ -262,11 +282,14 @@ void prepareToSend(void)
 	{
 		*(tx_data + i) = pByte[i - 4];
 	}
-	pByte = &intialSpeed;
+	pByte = &targetSpeed;
 	for(uint8_t i = 8; i < 10; i++)
 	{
 		*(tx_data + i) = pByte[i - 8];
 	}
+	*(tx_data + 10) = Dir_Left;
+	*(tx_data + 11) = Dir_Right;
+	*(tx_data + 12) = Dir_PID;
 	HAL_UART_Transmit(&huart1, tx_data, sizeof(tx_data), HAL_MAX_DELAY);
 	resetBuffer();
 }
@@ -284,11 +307,14 @@ void assignData(void)
 	{
 		pByte[i-4] = data[i];
 	}
-	pByte = &intialSpeed;
+	pByte = &targetSpeed;
 	for(uint8_t i = 8; i < 10; i++)
 	{
 		pByte[i-8] = data[i];
 	}
+	Dir_Left = data[10];
+	Dir_Right = data[11];
+	Dir_PID = data[12];
 	resetBuffer();
 }
 
@@ -316,7 +342,6 @@ void robot_writeFlash(void)
 		uint32_t data_write = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24);
         HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_ADDR_TARGET + i, data_write);
 	}
-
 	HAL_FLASH_Lock();
 }
 
@@ -330,7 +355,7 @@ void robot_init(void)
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-	robot_setDirection(0, 0);
+	robot_setDirection(0, 0, 0);
 
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, NUM_OF_ALL_SENSORS);
 
@@ -954,9 +979,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if(sensor_value[1] > v_compare[1])
 		{
 			// 	robot_setParam(SPEED_NORMAL, 1, 0.5);
-			if(intial_speed < intialSpeed)
+			if(speed < targetSpeed)
 			{
-				intial_speed += (uint8_t) ACCEL_SPEED;
+				speed += (uint8_t) ACCEL_SPEED;
 			}
 			robot_PIDCalib();
 		}
@@ -967,7 +992,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	else
 	{
-		intial_speed = 0;
+		speed = 0;
 		left_speed = 0;
 		right_speed = 0;
 		robot_setSpeed(0, 0);

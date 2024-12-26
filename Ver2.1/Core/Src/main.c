@@ -181,36 +181,23 @@ void robot_PIDCalib(void)
 	if(!Dir_PID)
 	{
 		err = sensor_value[0] - sensor_value[2];
-
-		uP = kP * err;
-		uD = kD * ((err - pre_err) / deltaT);
-		pre_err = err;
-
-		u = uP + uD;
-
-		if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
-		else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
-
-		left_speed = speed - ((int16_t) u);
-		right_speed = speed + ((int16_t) u);
 	}
 	else
 	{
 		err = sensor_value[2] - sensor_value[0];
-
-		uP = kP * err;
-		uD = kD * ((err - pre_err) / deltaT);
-		pre_err = err;
-
-		u = uP + uD;
-
-		if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
-		else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
-
-		left_speed = speed + ((int16_t) u);
-		right_speed = speed - ((int16_t) u);
 	}
 
+	uP = kP * err;
+	uD = kD * ((err - pre_err) / deltaT);
+	pre_err = err;
+
+	u = uP + uD;
+
+	if(u > PID_LIMIT_TOP) u = PID_LIMIT_TOP;
+	else if(u < PID_LIMIT_BOT) u = PID_LIMIT_BOT;
+
+	left_speed = speed - ((int16_t) u);
+	right_speed = speed + ((int16_t) u);
 	robot_setSpeed(left_speed, right_speed);
 }
 

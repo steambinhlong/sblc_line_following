@@ -180,11 +180,11 @@ void robot_PIDCalib(void)
 {
 	if(!Dir_PID)
 	{
-		err = sensor_value[0] - sensor_value[2];
+		err = sensor_value[0] - sensor_value[2] + center_val;
 	}
 	else
 	{
-		err = sensor_value[2] - sensor_value[0];
+		err = sensor_value[2] - sensor_value[0] + center_val;
 	}
 
 	uP = kP * err;
@@ -259,24 +259,75 @@ void resetBuffer(void)
 void prepareToSend(void)
 {
 	uint8_t *pByte = NULL;
-	pByte = &kP;
+
+	pByte = &kP_1;
 	for(uint8_t i = 0; i < 4; i++)
 	{
 		*(tx_data + i) = pByte[i];
 	}
-	pByte = &kD;
+
+	pByte = &kD_1;
 	for(uint8_t i = 4; i < 8; i++)
 	{
 		*(tx_data + i) = pByte[i - 4];
 	}
-	pByte = &targetSpeed;
+
+	pByte = &targetSpeed_1;
 	for(uint8_t i = 8; i < 10; i++)
 	{
 		*(tx_data + i) = pByte[i - 8];
 	}
-	*(tx_data + 10) = Dir_Left;
-	*(tx_data + 11) = Dir_Right;
-	*(tx_data + 12) = Dir_PID;
+
+	*(tx_data + 10) = accel_1;
+
+	pByte = &kP_2;
+	for(uint8_t i = 11; i < 15; i++)
+	{
+		*(tx_data + i) = pByte[i-11];
+	}
+
+	pByte = &kD_2;
+	for(uint8_t i = 15; i < 19; i++)
+	{
+		*(tx_data + i) = pByte[i - 15];
+	}
+
+	pByte = &targetSpeed_2;
+	for(uint8_t i = 19; i < 21; i++)
+	{
+		*(tx_data + i) = pByte[i - 19];
+	}
+
+	*(tx_data + 21) = accel_2;
+
+	pByte = &calib_weight;
+	for(uint8_t i = 22; i < 30; i++)
+	{
+		*(tx_data + i) = pByte[i - 22];
+	}
+
+	*(tx_data + 30) = Dir_Left;
+	*(tx_data + 31) = Dir_Right;
+	*(tx_data + 32) = Dir_PID;
+
+	pByte = &center_val;
+	for(uint8_t i = 33; i < 35; i++)
+	{
+		*(tx_data + i) = pByte[i - 33];
+	}
+
+	pByte = &pid_limit_top;
+	for(uint8_t i = 35; i < 37; i++)
+	{
+		*(tx_data + i) = pByte[i - 33];
+	}
+
+	pByte = &pid_limit_bot;
+	for(uint8_t i = 37; i < 39; i++)
+	{
+		*(tx_data + i) = pByte[i - 33];
+	}
+
 	HAL_UART_Transmit(&huart1, tx_data, sizeof(tx_data), HAL_MAX_DELAY);
 	resetBuffer();
 }
@@ -284,24 +335,74 @@ void prepareToSend(void)
 void assignData(void)
 {
 	uint8_t *pByte = NULL;
-	pByte = &kP;
+	pByte = &kP_1;
 	for(uint8_t i = 0; i < 4; i++)
 	{
 		pByte[i] = data[i];
 	}
-	pByte = &kD;
+	pByte = &kD_1;
 	for(uint8_t i = 4; i < 8; i++)
 	{
 		pByte[i-4] = data[i];
 	}
-	pByte = &targetSpeed;
+	pByte = &targetSpeed_1;
 	for(uint8_t i = 8; i < 10; i++)
 	{
 		pByte[i-8] = data[i];
 	}
-	Dir_Left = data[10];
-	Dir_Right = data[11];
-	Dir_PID = data[12];
+	accel_1 = data[10];
+
+	pByte = &kP_2;
+	for(uint8_t i = 11; i < 15; i++)
+	{
+		pByte[i-11] = data[i];
+	}
+	pByte = &kD_2;
+	for(uint8_t i = 15; i < 19; i++)
+	{
+		pByte[i-15] = data[i];
+	}
+	pByte = &targetSpeed_2;
+	for(uint8_t i = 19; i < 21; i++)
+	{
+		pByte[i-19] = data[i];
+	}
+	accel_2 = data[21];
+
+	pByte = &calib_weight;
+	for(uint8_t i = 22; i < 28; i++)
+	{
+		pByte[i-22] = data[i];
+	}
+
+	pByte = &gate_sensor_value;
+	for(uint8_t i = 28; i < 30; i++)
+	{
+		pByte[i-28] = data[i];
+	}
+
+	Dir_Left = data[30];
+	Dir_Right = data[31];
+	Dir_PID = data[32];
+
+	pByte = &center_val;
+	for(uint8_t i = 33; i < 35; i++)
+	{
+		pByte[i-33] = data[i];
+	}
+
+	pByte = &pid_limit_top;
+	for(uint8_t i = 35; i < 37; i++)
+	{
+		pByte[i-35] = data[i];
+	}
+
+	pByte = &pid_limit_bot;
+	for(uint8_t i = 37; i < 39; i++)
+	{
+		pByte[i-37] = data[i];
+	}
+
 	resetBuffer();
 }
 
@@ -965,16 +1066,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		if(sensor_value[1] > v_compare[1])
 		{
-			// 	robot_setParam(SPEED_NORMAL, 1, 0.5);
-			if(speed < targetSpeed)
+			robot_setParam(targetSpeed_2, kP_2, kD_2);
+			if(speed < targetSpeed_2)
 			{
-				speed += (uint8_t) ACCEL_SPEED;
+				speed += accel_2;
 			}
 			robot_PIDCalib();
 		}
 		else
 		{
-			// 	robot_setParam(SPEED_BRAKE, 1.5, 0.5);
+			robot_setParam(targetSpeed_1, kP_1, kD_1);
+			if(speed < targetSpeed_1)
+			{
+				speed += accel_1;
+			}
+			else if(speed > targetSpeed_1)
+			{
+				speed -= accel_1;
+			}
+			robot_PIDCalib();
 		}
 	}
 	else
@@ -994,7 +1104,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	if(run_with_sensor == 1)
 	{
-		if(sensor_value[3] > TC_DETECT_VALUE)
+		if(sensor_value[3] > gate_sensor_value)
 		{
 			robot_setRGB(0, 0, 1);
 		}

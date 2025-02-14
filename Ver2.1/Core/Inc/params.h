@@ -57,7 +57,7 @@
 #define SIZE_TX_DATA 39
 #define SIZE_COMMAND 2
 #define SIZE_DATA 39
-#define TIMEOUT_RECEIVING_DATA 200
+#define TIMEOUT_RECEIVING_DATA 800
 #define WORD_DISTANCE_BETWEEN 4
 
 // RGB
@@ -84,7 +84,7 @@
 #define SPEED_NORMAL 900
 #define SPEED_BRAKE 800
 
-#define TIMEOUT_WRITE_FLASH 200
+#define TIMEOUT_WRITE_FLASH 500
 
 
 // Các trường hợp chạy
@@ -118,7 +118,7 @@ uint8_t accel_2;
 uint16_t calib_weight[NUM_OF_LINE_SENSOR] = {0};
 uint16_t gate_sensor_value;
 
-uint16_t center_val;
+int16_t center_val;
 int16_t pid_limit_top;
 int16_t pid_limit_bot;
 // Các khâu PID
@@ -150,8 +150,10 @@ uint16_t sensor_led_pin[NUM_OF_LED] = {LED1_Pin, LED2_Pin, LED3_Pin};	// Chân
 // Cờ - Flag
 uint8_t pid_enable = 0;
 uint8_t run_with_sensor = 0;
+uint8_t readyToSend = 0;
 uint8_t readyToAssign = 0;
 uint8_t readyToWrite = 0;
+uint8_t isConnected = 0;
 
 // Lỗi PID
 float err, pre_err;

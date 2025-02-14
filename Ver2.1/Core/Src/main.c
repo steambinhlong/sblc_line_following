@@ -319,16 +319,16 @@ void prepareToSend(void)
 	pByte = &pid_limit_top;
 	for(uint8_t i = 35; i < 37; i++)
 	{
-		*(tx_data + i) = pByte[i - 33];
+		*(tx_data + i) = pByte[i - 35];
 	}
 
 	pByte = &pid_limit_bot;
 	for(uint8_t i = 37; i < 39; i++)
 	{
-		*(tx_data + i) = pByte[i - 33];
+		*(tx_data + i) = pByte[i - 37];
 	}
 
-	HAL_UART_Transmit(&huart1, tx_data, sizeof(tx_data), HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart1, tx_data, 39, HAL_MAX_DELAY);
 	resetBuffer();
 }
 
@@ -444,10 +444,10 @@ void robot_init(void)
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
 	robot_setDirection(0, 0, 0);
+	robot_readFlash();
 
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) sensor_value, NUM_OF_ALL_SENSORS);
 
-	robot_readFlash();
 	robot_setRGB(1, 0, 0);
 	HAL_Delay(TIMEBLINK_RGB);
 	robot_setRGB(0, 1, 0);
@@ -500,26 +500,43 @@ void button_handle(void)
 	}
 }
 
+//void robotDetectCross(void)
+//{
+//	if(!isConnected)
+//	{
+//		if(sensor_value[3] > gate_sensor_value)
+//		{
+//			robot_setRGB(0, 0, 1);
+//		}
+//		else
+//		{
+//			robot_setRGB(0, 0, 0);
+//		}
+//	}
+//}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart -> Instance == USART1)
 	{
+		if(cmd[0] == '@' && cmd[1] == '\n')
+		{
+			robot_setRGB(1, 0, 1);
+			HAL_UART_AbortReceive_IT(huart);
+//			isConnected = 1;
+			readyToSend = 1;
+		}
 		if(cmd[0] == '#' && cmd[1] == '\n')
 		{
 			robot_setRGB(0, 0, 0);
 			resetBuffer();
 			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
-		}
-		if(cmd[0] == '@' && cmd[1] == '\n')
-		{
-			robot_setRGB(1, 0, 1);
-			prepareToSend();
-			HAL_UART_Receive_IT(huart, cmd, SIZE_COMMAND);
+//			isConnected = 0;
 		}
 		if(cmd[0] == '$' && cmd[1] == '\n')
 		{
-			HAL_UART_AbortReceive_IT(huart);
 			robot_setRGB(0, 1, 0);
+			HAL_UART_AbortReceive_IT(huart);
 			HAL_UART_Receive_IT(huart, data, SIZE_DATA);
 			readyToAssign = 1;
 		}
@@ -544,7 +561,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -632,6 +649,13 @@ int main(void)
 			break;
 
 		case STOP:
+			if(readyToSend)
+			{
+				readyToSend = 0;
+				HAL_Delay(100);
+				prepareToSend();
+				HAL_UART_Receive_IT(&huart1, cmd, SIZE_COMMAND);
+			}
 		  	if(readyToAssign)
 		  	{
 		  		HAL_UART_Receive_IT(&huart1, data, SIZE_DATA);
@@ -1064,6 +1088,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3) {
 	if(pid_enable == 1)
 	{
+		robot_setRGB(0, 1, 0);
 		if(sensor_value[1] > v_compare[1])
 		{
 			robot_setParam(targetSpeed_2, kP_2, kD_2);
@@ -1076,15 +1101,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		else
 		{
 			robot_setParam(targetSpeed_1, kP_1, kD_1);
-			if(speed < targetSpeed_1)
-			{
-				speed += accel_1;
-			}
-			else if(speed > targetSpeed_1)
-			{
-				speed -= accel_1;
-			}
-			robot_PIDCalib();
 		}
 	}
 	else
@@ -1098,19 +1114,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM4) {
 	button_handle();
 	sensor_mask = sensor_writeLED();
+//	robotDetectCross();
 	if((sensor_mask & MASK_4BIT) == MASK_111)
 	{
 		pid_enable = 0;
+		robot_setRGB(0, 0, 0);
 	}
 	if(run_with_sensor == 1)
 	{
-		if(sensor_value[3] > gate_sensor_value)
+		if(sensor_value[3] < gate_sensor_value)
 		{
-			robot_setRGB(0, 0, 1);
-		}
-		else
-		{
-			robot_setRGB(0, 0, 0);
 			pid_enable = 1;
 			run_with_sensor = 0;
 		}
